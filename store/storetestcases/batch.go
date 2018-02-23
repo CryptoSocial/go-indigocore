@@ -21,6 +21,7 @@ import (
 	"github.com/stratumn/go-indigocore/cs"
 	"github.com/stratumn/go-indigocore/cs/cstesting"
 	"github.com/stratumn/go-indigocore/store"
+	"github.com/stratumn/go-indigocore/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,12 +38,18 @@ func (f Factory) TestBatch(t *testing.T) {
 	a := f.initAdapter(t)
 	defer f.freeAdapter(a)
 
+	eventChan := make(chan *store.Event, 10)
+	a.AddStoreEventChannel(eventChan)
+
+	segmentsTotalCount := 6
 	// Initialize the adapter with a few links with specific map ids
-	for i := 0; i < 6; i++ {
+	for i := 0; i < segmentsTotalCount; i++ {
 		link := cstesting.RandomLink()
 		link.Meta.MapID = fmt.Sprintf("map%d", i%3)
 		a.CreateLink(link)
 	}
+
+	testutil.WaitForSavedLinks(eventChan, segmentsTotalCount)
 
 	t.Run("CreateLink should not write to underlying store", func(t *testing.T) {
 		b := initBatch(t, a)
@@ -65,6 +72,9 @@ func (f Factory) TestBatch(t *testing.T) {
 
 		err = b.Write()
 		assert.NoError(t, err, "b.Write()")
+
+		// wait for SavedLinks event
+		testutil.WaitForSavedLinks(eventChan, 1)
 
 		found, err := a.GetSegment(linkHash)
 		assert.NoError(t, err, "a.GetSegment()")

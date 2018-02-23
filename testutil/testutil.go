@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/stratumn/go-indigocore/cs"
+	"github.com/stratumn/go-indigocore/store"
 	"github.com/stratumn/go-indigocore/types"
 )
 
@@ -95,4 +97,30 @@ func RandomKey() []byte {
 	b := make([]byte, c)
 	rand.Read(b)
 	return b
+}
+
+// WaitForSavedLinks wait for SavedLinks events
+func WaitForSavedLinks(eventChan chan *store.Event, linkCount int) {
+	eventCount := 0
+	for {
+		storeEvent := <-eventChan
+		if storeEvent.EventType == store.SavedLinks {
+			if eventCount += len(storeEvent.Data.([]*cs.Link)); eventCount >= linkCount {
+				break
+			}
+		}
+	}
+}
+
+// WaitForSavedEvidences wait for SavedEvidences events
+func WaitForSavedEvidences(eventChan chan *store.Event, evidenceCount int) {
+	eventCount := 0
+	for {
+		storeEvent := <-eventChan
+		if storeEvent.EventType == store.SavedEvidences {
+			if eventCount += len(storeEvent.Data.(map[string]*cs.Evidence)); eventCount >= evidenceCount {
+				break
+			}
+		}
+	}
 }

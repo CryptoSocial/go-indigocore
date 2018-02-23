@@ -46,12 +46,12 @@ func newTestTMStore() (store.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return tmstore, nil
 }
 
 func resetTMPop(_ store.Adapter) {
-	ResetNode()
+	tmstore.StopWebsocket()
+	ResetStore()
 }
 
 func updateValidatorRulesFile(t *testing.T, in, out string) {

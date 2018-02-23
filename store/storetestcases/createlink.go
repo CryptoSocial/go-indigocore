@@ -22,6 +22,8 @@ import (
 
 	"github.com/stratumn/go-indigocore/cs"
 	"github.com/stratumn/go-indigocore/cs/cstesting"
+	"github.com/stratumn/go-indigocore/store"
+	"github.com/stratumn/go-indigocore/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,10 +32,14 @@ func (f Factory) TestCreateLink(t *testing.T) {
 	a := f.initAdapter(t)
 	defer f.freeAdapter(a)
 
+	eventChan := make(chan *store.Event, 10)
+	a.AddStoreEventChannel(eventChan)
+
 	t.Run("CreateLink should not produce an error", func(t *testing.T) {
 		l := cstesting.RandomLink()
 		_, err := a.CreateLink(l)
 		assert.NoError(t, err, "a.CreateLink()")
+		testutil.WaitForSavedLinks(eventChan, 1)
 	})
 
 	t.Run("CreateLink with no priority should not produce an error", func(t *testing.T) {
@@ -42,6 +48,7 @@ func (f Factory) TestCreateLink(t *testing.T) {
 
 		_, err := a.CreateLink(l)
 		assert.NoError(t, err, "a.CreateLink()")
+		testutil.WaitForSavedLinks(eventChan, 1)
 	})
 
 	t.Run("CreateLink and update state should not produce an error", func(t *testing.T) {
@@ -52,6 +59,7 @@ func (f Factory) TestCreateLink(t *testing.T) {
 		l = cstesting.ChangeState(l)
 		_, err = a.CreateLink(l)
 		assert.NoError(t, err, "a.CreateLink()")
+		testutil.WaitForSavedLinks(eventChan, 2)
 	})
 
 	t.Run("CreateLink and update map ID should not produce an error", func(t *testing.T) {
@@ -62,6 +70,7 @@ func (f Factory) TestCreateLink(t *testing.T) {
 		l2 := cstesting.ChangeMapID(l1)
 		_, err = a.CreateLink(l2)
 		assert.NoError(t, err, "a.CreateLink()")
+		testutil.WaitForSavedLinks(eventChan, 2)
 
 	})
 
@@ -73,6 +82,7 @@ func (f Factory) TestCreateLink(t *testing.T) {
 		l = cstesting.RandomBranch(l)
 		_, err = a.CreateLink(l)
 		assert.NoError(t, err, "a.CreateLink()")
+		testutil.WaitForSavedLinks(eventChan, 2)
 	})
 }
 

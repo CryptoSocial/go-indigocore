@@ -95,8 +95,13 @@ func New(config *Config, tmClient client.Client) *TMStore {
 // StartWebsocket starts the websocket client and wait for New Block events.
 func (t *TMStore) StartWebsocket() error {
 	if !t.tmClient.IsRunning() {
-		if err := t.tmClient.Start(); err != nil && err != tmcommon.ErrAlreadyStarted {
-			return err
+		if err := t.tmClient.Start(); err != nil {
+			if err == tmcommon.ErrAlreadyStarted {
+				err = t.tmClient.Reset()
+			}
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -113,7 +118,8 @@ func (t *TMStore) StartWebsocket() error {
 		}
 	}()
 
-	if err := t.tmClient.Subscribe(t.ctx, Name, tmtypes.EventQueryNewBlock, t.tmEventChan); err != nil && err.Error() != ErrAlreadySubscribed {
+	err := t.tmClient.Subscribe(t.ctx, Name, tmtypes.EventQueryNewBlock, t.tmEventChan)
+	if err != nil && err.Error() != ErrAlreadySubscribed {
 		return err
 	}
 
@@ -319,26 +325,20 @@ func (t *TMStore) NewBatch() (store.Batch, error) {
 	return bufferedbatch.NewBatch(t), nil
 }
 
-func (t *TMStore) broadcastTx(tx *tmpop.Tx) (*ctypes.ResultBroadcastTxCommit, error) {
+func (t *TMStore) broadcastTx(tx *tmpop.Tx) (*ctypes.ResultBroadcastTx, error) {
 	txBytes, err := json.Marshal(tx)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := t.tmClient.BroadcastTxCommit(txBytes)
+	result, err := t.tmClient.BroadcastTxSync(txBytes)
 	if err != nil {
 		return nil, err
 	}
-	if result.CheckTx.IsErr() {
-		if result.CheckTx.Code == tmpop.CodeTypeValidation {
-			// TODO: this package should be HTTP unaware, so
-			// we need a better way to pass error types.
-			return nil, jsonhttp.NewErrBadRequest(result.CheckTx.Log)
-		}
-		return nil, fmt.Errorf(result.CheckTx.Log)
-	}
-	if result.DeliverTx.IsErr() {
-		return nil, fmt.Errorf(result.DeliverTx.Log)
+	if result.Code == tmpop.CodeTypeValidation {
+		// TODO: this package should be HTTP unaware, so
+		// we need a better way to pass error types.
+		return nil, jsonhttp.NewErrBadRequest(result.Log)
 	}
 
 	return result, nil

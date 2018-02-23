@@ -22,6 +22,7 @@ import (
 
 	"github.com/stratumn/go-indigocore/cs"
 	"github.com/stratumn/go-indigocore/cs/cstesting"
+	"github.com/stratumn/go-indigocore/store"
 	"github.com/stratumn/go-indigocore/testutil"
 	// import every type of evidence to see if we can deserialize all of them
 	_ "github.com/stratumn/go-indigocore/cs/evidences"
@@ -34,11 +35,17 @@ func (f Factory) TestGetSegment(t *testing.T) {
 	a := f.initAdapter(t)
 	defer f.freeAdapter(a)
 
+	eventChan := make(chan *store.Event, 10)
+	a.AddStoreEventChannel(eventChan)
+
 	link := cstesting.RandomLink()
 	linkHash, _ := a.CreateLink(link)
 
 	link2 := cstesting.ChangeState(link)
 	linkHash2, _ := a.CreateLink(link2)
+
+	// wait for SavedLinks event
+	testutil.WaitForSavedLinks(eventChan, 2)
 
 	t.Run("Getting an existing segment should work", func(t *testing.T) {
 		s, err := a.GetSegment(linkHash)
@@ -67,6 +74,7 @@ func (f Factory) TestGetSegment(t *testing.T) {
 	})
 
 	t.Run("Getting a segment should return its evidences", func(t *testing.T) {
+		totalEvidenceCount := 5
 		e1 := cs.Evidence{Backend: "TMPop", Provider: "1"}
 		e2 := cs.Evidence{Backend: "dummy", Provider: "2"}
 		e3 := cs.Evidence{Backend: "batch", Provider: "3"}
@@ -79,10 +87,26 @@ func (f Factory) TestGetSegment(t *testing.T) {
 			assert.NoError(t, err, "a.AddEvidence()")
 		}
 
+		// wait for the SavedEvidence events
+		testutil.WaitForSavedEvidences(eventChan, totalEvidenceCount)
+		// savedEvidencesCount := 0
+		// for {
+		// 	storeEvent := <-eventChan
+		// 	if storeEvent.EventType == store.SavedEvidences {
+		// 		_, ok := storeEvent.Data.(map[string]*cs.Evidence)[linkHash2.String()]
+		// 		if ok {
+		// 			savedEvidencesCount++
+		// 		}
+		// 		if savedEvidencesCount >= totalEvidenceCount {
+		// 			break
+		// 		}
+		// 	}
+		// }
+
 		got, err := a.GetSegment(linkHash2)
 		assert.NoError(t, err, "a.GetSegment()")
 		assert.NotNil(t, got)
-		assert.Len(t, got.Meta.Evidences, 5, "Invalid number of evidences")
+		assert.True(t, len(got.Meta.Evidences) >= totalEvidenceCount, "Invalid number of evidences")
 	})
 }
 

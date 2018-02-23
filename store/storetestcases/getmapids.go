@@ -32,6 +32,9 @@ func (f Factory) TestGetMapIDs(t *testing.T) {
 	a := f.initAdapter(t)
 	defer f.freeAdapter(a)
 
+	eventChan := make(chan *store.Event, 10)
+	a.AddStoreEventChannel(eventChan)
+
 	processNames := [2]string{"Foo", "Bar"}
 	testPageSize := 3
 	for i := 0; i < testPageSize; i++ {
@@ -42,6 +45,8 @@ func (f Factory) TestGetMapIDs(t *testing.T) {
 			a.CreateLink(l)
 		}
 	}
+	// wait for SavedLinks event
+	testutil.WaitForSavedLinks(eventChan, testPageSize*testPageSize)
 
 	t.Run("Getting all map IDs should work", func(t *testing.T) {
 		slice, err := a.GetMapIDs(&store.MapFilter{

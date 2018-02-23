@@ -67,8 +67,10 @@ func (f Factory) TestFindSegments(t *testing.T) {
 	a := f.initAdapter(t)
 	defer f.freeAdapter(a)
 
-	// Setup a test fixture with segments matching different types of filters
+	eventChan := make(chan *store.Event, 10)
+	a.AddStoreEventChannel(eventChan)
 
+	// Setup a test fixture with segments matching different types of filters
 	testPageSize := 3
 	segmentsTotalCount := 8
 
@@ -107,6 +109,9 @@ func (f Factory) TestFindSegments(t *testing.T) {
 	})
 
 	createLinkBranch(a, link4, nil)
+
+	// wait for SavedLinks event
+	testutil.WaitForSavedLinks(eventChan, segmentsTotalCount)
 
 	t.Run("Should order by priority", func(t *testing.T) {
 		slice, err := a.FindSegments(&store.SegmentFilter{
@@ -325,6 +330,7 @@ func (f Factory) TestFindSegments(t *testing.T) {
 	})
 
 	t.Run("Returns its evidences", func(t *testing.T) {
+		totalEvidenceCount := 5
 		e1 := cs.Evidence{Backend: "TMPop", Provider: "1", Proof: &evidences.TendermintProof{Root: testutil.RandomHash()}}
 		e2 := cs.Evidence{Backend: "dummy", Provider: "2", Proof: &cs.GenericProof{}}
 		e3 := cs.Evidence{Backend: "batch", Provider: "3", Proof: &evidences.BatchProof{}}
@@ -337,6 +343,22 @@ func (f Factory) TestFindSegments(t *testing.T) {
 			assert.NoError(t, err, "a.AddEvidence()")
 		}
 
+		// wait for the SavedEvidence events
+		// savedEvidencesCount := 0
+		testutil.WaitForSavedEvidences(eventChan, totalEvidenceCount)
+		// for {
+		// 	storeEvent := <-eventChan
+		// 	if storeEvent.EventType == store.SavedEvidences {
+		// 		_, ok := storeEvent.Data.(map[string]*cs.Evidence)[linkHash4.String()]
+		// 		if ok {
+		// 			savedEvidencesCount++
+		// 		}
+		// 		if savedEvidencesCount >= totalEvidenceCount {
+		// 			break
+		// 		}
+		// 	}
+		// }
+
 		got, err := a.FindSegments(&store.SegmentFilter{
 			Pagination: store.Pagination{
 				Limit: segmentsTotalCount,
@@ -348,7 +370,7 @@ func (f Factory) TestFindSegments(t *testing.T) {
 		assert.NoError(t, err, "a.FindSegments()")
 		assert.NotNil(t, got)
 		assert.Len(t, got, 1)
-		assert.True(t, len(got[0].Meta.Evidences) >= 5)
+		assert.True(t, len(got[0].Meta.Evidences) >= totalEvidenceCount, "Invalid number of evidences")
 	})
 
 }

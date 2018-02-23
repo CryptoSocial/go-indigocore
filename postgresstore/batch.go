@@ -14,32 +14,56 @@
 
 package postgresstore
 
-import "database/sql"
+import (
+	"database/sql"
+
+	"github.com/stratumn/go-indigocore/cs"
+	"github.com/stratumn/go-indigocore/store"
+	"github.com/stratumn/go-indigocore/types"
+)
 
 // Batch is the type that implements github.com/stratumn/go-indigocore/store.Batch.
 type Batch struct {
 	*reader
 	*writer
-	done bool
-	tx   *sql.Tx
+
+	Links      []*cs.Link
+	eventChans []chan *store.Event
+	done       bool
+	tx         *sql.Tx
 }
 
 // NewBatch creates a new instance of a Postgres Batch.
-func NewBatch(tx *sql.Tx) (*Batch, error) {
+func NewBatch(tx *sql.Tx, eventChans []chan *store.Event) (*Batch, error) {
 	stmts, err := newBatchStmts(tx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Batch{
-		reader: &reader{stmts: readStmts(stmts.readStmts)},
-		writer: &writer{stmts: writeStmts(stmts.writeStmts)},
-		tx:     tx,
+		reader:     &reader{stmts: readStmts(stmts.readStmts)},
+		writer:     &writer{stmts: writeStmts(stmts.writeStmts)},
+		tx:         tx,
+		eventChans: eventChans,
 	}, nil
+}
+
+// CreateLink implements github.com/stratumn/go-indigocore/store.LinkWriter.CreateLink.
+func (b *Batch) CreateLink(link *cs.Link) (*types.Bytes32, error) {
+	b.Links = append(b.Links, link)
+	return b.writer.CreateLink(link)
 }
 
 // Write implements github.com/stratumn/go-indigocore/store.Batch.Write.
 func (b *Batch) Write() error {
 	b.done = true
-	return b.tx.Commit()
+	if err := b.tx.Commit(); err != nil {
+		return err
+	}
+
+	for _, c := range b.eventChans {
+		c <- store.NewSavedLinks(b.Links...)
+	}
+
+	return nil
 }

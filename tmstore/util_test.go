@@ -39,8 +39,7 @@ func NewTestClient() *TMStore {
 	return New(&Config{}, client.NewLocal(testNode))
 }
 
-func ResetNode() {
-	testNode.Reset()
+func ResetStore() {
 	*testDummyStore = *dummystore.New(&dummystore.Config{})
 }
 

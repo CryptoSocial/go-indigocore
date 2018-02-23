@@ -44,7 +44,8 @@
 
 [[constraint]]
   name = "github.com/tendermint/tendermint"
-  version = "0.16.0"
+  branch="stratumn-reset-eventbus"
+  source = "https://github.com/stratumn/tendermint.git"
 
 [[constraint]]
   name = "github.com/tendermint/tmlibs"

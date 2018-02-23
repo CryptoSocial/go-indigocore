@@ -103,7 +103,7 @@ func (a *Store) NewBatch() (store.Batch, error) {
 	if err != nil {
 		return nil, err
 	}
-	b, err := NewBatch(tx)
+	b, err := NewBatch(tx, a.eventChans)
 	if err != nil {
 		return nil, err
 	}
